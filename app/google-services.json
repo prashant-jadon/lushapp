@@ -1,0 +1,47 @@
+{
+  "project_info": {
+    "project_number": "79879772344",
+    "project_id": "lushapp-386c3",
+    "storage_bucket": "lushapp-386c3.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:79879772344:android:df2c11b04db9bc78ef7c4d",
+        "android_client_info": {
+          "package_name": "com.chandra.lushapp"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "79879772344-86ulrffibtp5kuk4qu5q44nd737cjf9c.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.chandra.lushapp",
+            "certificate_hash": "f47e1da7ce7b0817611caa13505c003628ab37e7"
+          }
+        },
+        {
+          "client_id": "79879772344-ncuisekbfgnqc76g7covhkak2ers7com.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyByAEOFuPMBgiBWstvBGYxGFTbJFMNs3-s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "79879772344-ncuisekbfgnqc76g7covhkak2ers7com.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
