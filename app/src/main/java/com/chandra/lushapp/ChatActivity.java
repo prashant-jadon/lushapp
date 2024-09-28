@@ -8,11 +8,15 @@ import android.text.TextUtils;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
+import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.fragment.app.FragmentManager;
+import androidx.fragment.app.FragmentTransaction;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -24,12 +28,18 @@ import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
 import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.firestore.DocumentReference;
+import com.google.firebase.firestore.DocumentSnapshot;
+import com.google.firebase.firestore.FieldValue;
+import com.google.firebase.firestore.FirebaseFirestore;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+
+//TODO instead of runner use something else for timer
 public class ChatActivity extends AppCompatActivity {
 
     private RecyclerView chatRecyclerView;
@@ -43,6 +53,7 @@ public class ChatActivity extends AppCompatActivity {
     private ChatAdapter chatAdapter;
     private String otherUserName = null;
     private String roomId;
+    private DatabaseReference chatRoomRef;
 
     private Handler timerHandler;
     private int countdownSeconds = 60; // Countdown time in seconds
@@ -72,6 +83,32 @@ public class ChatActivity extends AppCompatActivity {
         chatAdapter = new ChatAdapter(messageList);
         chatRecyclerView.setLayoutManager(new LinearLayoutManager(this));
         chatRecyclerView.setAdapter(chatAdapter);
+        chatRoomRef = FirebaseDatabase.getInstance().getReference("chatrooms").child(roomId);
+
+
+        // Add listener for chat room changes
+        chatRoomRef.addValueEventListener(new ValueEventListener() {
+            @Override
+            public void onDataChange(@NonNull DataSnapshot dataSnapshot) {
+                if (dataSnapshot.exists()) {
+                    String user1Id = dataSnapshot.child("user1").getValue(String.class);
+                    String user2Id = dataSnapshot.child("user2").getValue(String.class);
+
+                    // Load user data for both users
+                    if (user1Id != null) {
+                        loadUserData(user1Id, otherUsernameTextView);
+                    }
+                    if (user2Id != null) {
+                        loadUserData(user2Id, otherUsernameTextView);
+                    }
+                }
+            }
+
+            @Override
+            public void onCancelled(@NonNull DatabaseError databaseError) {
+                Toast.makeText(ChatActivity.this, "Error loading chat room data", Toast.LENGTH_SHORT).show();
+            }
+        });
 
         sendMessageButton.setOnClickListener(view -> {
             String message = messageInput.getText().toString().trim();
@@ -89,6 +126,21 @@ public class ChatActivity extends AppCompatActivity {
         startChatTimer(timer);
     }
 
+    private void loadUserData(String userId, TextView usernameTextView) {
+        FirebaseDatabase.getInstance().getReference("users").child(userId).get()
+                .addOnSuccessListener(documentSnapshot -> {
+                    if (documentSnapshot.exists()) {
+                        String username = documentSnapshot.child("username").getValue(String.class);
+                        String profileImageUrl = documentSnapshot.child("profileImage").getValue(String.class);
+
+                        usernameTextView.setText(username);
+                    }
+                })
+                .addOnFailureListener(e -> {
+                    Toast.makeText(this, "Error loading user data", Toast.LENGTH_SHORT).show();
+                });
+    }
+
     private void startChatTimer(TextView timerView) {
         timerHandler = new Handler();
         timerHandler.postDelayed(new Runnable() {
@@ -96,7 +148,8 @@ public class ChatActivity extends AppCompatActivity {
             public void run() {
                 if (countdownSeconds > 0) {
                     timerView.setText(String.valueOf(countdownSeconds));
-                    if (countdownSeconds == 5) {
+                    if (countdownSeconds == 20) {
+                        //showFriendRequestDialog(); // Show dialog at 5 seconds left
                         Toast.makeText(ChatActivity.this, "5 sec left", Toast.LENGTH_SHORT).show();
                     }
                     countdownSeconds--;
@@ -108,6 +161,7 @@ public class ChatActivity extends AppCompatActivity {
             }
         }, 1000);
     }
+
 
     private void sendMessage(String message) {
         Map<String, Object> messageData = new HashMap<>();
@@ -125,7 +179,8 @@ public class ChatActivity extends AppCompatActivity {
                 for (DataSnapshot snapshot : dataSnapshot.getChildren()) {
                     String otherUserId = snapshot.child("sender").getValue(String.class);
                     if (otherUserId != null && !otherUserId.equals(currentUserId)) {
-                        otherUsernameTextView.setText(otherUserId); // Set user ID instead of user name
+                        // Load username and image URL from Firestore
+                        loadUserDetailsFromFirestore(otherUserId);
                     }
                 }
             }
@@ -137,6 +192,27 @@ public class ChatActivity extends AppCompatActivity {
         });
     }
 
+    private void loadUserDetailsFromFirestore(String userId) {
+        FirebaseFirestore firestore = FirebaseFirestore.getInstance();
+        firestore.collection("users").document(userId)
+                .get()
+                .addOnCompleteListener(task -> {
+                    if (task.isSuccessful()) {
+                        DocumentSnapshot document = task.getResult();
+                        if (document.exists()) {
+                            String username = document.getString("username");
+                            String profileImageUrl = document.getString("profilePicture");
+
+                            // Update UI with username and profile image
+                            otherUsernameTextView.setText(username);
+                            // Load the profile image using an image loading library like Glide or Picasso
+                            // Glide.with(this).load(profileImageUrl).into(profileImageView); // Add ImageView in your layout
+                        }
+                    } else {
+                        Toast.makeText(ChatActivity.this, "Error fetching user details", Toast.LENGTH_SHORT).show();
+                    }
+                });
+    }
 
     private void loadMessages() {
         chatRef.addValueEventListener(new ValueEventListener() {
@@ -149,7 +225,12 @@ public class ChatActivity extends AppCompatActivity {
                 }
                 chatAdapter.notifyDataSetChanged();
                 chatRecyclerView.scrollToPosition(messageList.size() - 1);
-                resetChatTimer(); // Reset the timer when new messages are loaded
+                resetChatTimer();
+
+                sharedPreferences = getSharedPreferences("__lushapp__", MODE_PRIVATE);
+                String currentUserId = sharedPreferences.getString("credential", "");
+                loadOtherUserName(currentUserId);
+                // Reset the timer when new messages are loaded
             }
 
             @Override
@@ -174,12 +255,37 @@ public class ChatActivity extends AppCompatActivity {
         if (timerHandler != null) {
             timerHandler.removeCallbacksAndMessages(null);
         }
-
-        // Instead of calling super.onBackPressed(), transition to InternetChatFragment
-        Intent intent = new Intent(ChatActivity.this, InternetChatFragment.class);
-        startActivity(intent);
         finish(); // Call finish to close this activity
     }
+
+//    private void showFriendRequestDialog() {
+//        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+//        builder.setTitle("Add as Friend");
+//        builder.setMessage("Do you want to add " + otherUserName + " as your friend?");
+//
+//        builder.setPositiveButton("Yes", (dialog, which) -> {
+//            addFriend( otherUserName);
+//            addFriend(otherUserName);
+//        });
+//
+//        builder.setNegativeButton("No", (dialog, which) -> dialog.dismiss());
+//
+//        AlertDialog dialog = builder.create();
+//        dialog.show();
+//    }
+
+//    private void addFriend( String friendId) {
+//        FirebaseFirestore firestore = FirebaseFirestore.getInstance();
+//        sharedPreferences = getSharedPreferences("__lushapp__", MODE_PRIVATE);
+//        String currentUserId = sharedPreferences.getString("credential", "");
+//        DocumentReference userDocRef = firestore.collection("users").document(currentUserId);
+//
+//        userDocRef.update("friends", FieldValue.arrayUnion(friendId))
+//                .addOnSuccessListener(aVoid -> Toast.makeText(ChatActivity.this, "Friend added!", Toast.LENGTH_SHORT).show())
+//                .addOnFailureListener(e -> Toast.makeText(ChatActivity.this, "Error adding friend", Toast.LENGTH_SHORT).show());
+//    }
+
+
 
 
     private void leaveChatRoom() {

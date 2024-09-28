@@ -137,7 +137,7 @@ public class InternetChatFragment extends Fragment {
     }
 
     private void navigateToChat(String roomId) {
-        Intent intent = new Intent(getActivity(), ChatActivity.class);
+        Intent intent = new Intent(getContext(), ChatActivity.class);
         intent.putExtra("roomId", roomId);
         startActivity(intent);
     }
